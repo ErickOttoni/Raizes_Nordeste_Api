@@ -1,8 +1,8 @@
-# Requisitos do sistema de pedidos multicanal
+# Requisitos – Sistema de pedidos multicanal (Raízes do Nordeste)
 
-Versão em Markdown da planilha `requisitos_pedidos.xlsx`, que é a fonte. Em caso de diferença, vale a planilha.
+## RF
 
-## Requisitos funcionais (RF)
+Requisitos funcionais
 
 Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Implementado' = fluxo fechado pedido → pagamento → status, mais LGPD e pontos; o restante é 'Proposto' (prazo de entrega: 23/11).
 
@@ -13,7 +13,7 @@ Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Impleme
 | RF03 | Acesso | Autorizar cada endpoint por perfil (cliente, atendente, cozinha, gerente). | UC2 | Essencial | Implementado |  |
 | RF04 | Cardápio | Exibir o cardápio da unidade escolhida. | UC3 | Essencial | Implementado |  |
 | RF05 | Cardápio | Gerenciar produtos e cardápio por unidade. | UC22 | Importante | Proposto |  |
-| RF06 | Pedidos | Criar pedido com unidadeId, itens e canalPedido (APP, TOTEM, WEB ou PICKUP; obrigatório, validado e filtrável). O cliente vem do token JWT. Retorna 400/422 se canalPedido estiver ausente ou inválido e 404 se a unidade ou o produto não existir ou se o produto não estiver ativo no cardápio da unidade. O pedido nasce em AGUARDANDO_PAGAMENTO. | UC4 | Essencial | Implementado |  |
+| RF06 | Pedidos | Criar pedido com unidadeId, itens e canalPedido (APP, TOTEM, WEB ou PICKUP; obrigatório, validado e filtrável). O cliente vem do token JWT. O cliente nunca envia preço: o servidor usa o preço do cardápio da unidade, grava em precoUnitario e calcula o total. Retorna 401 sem token ou token inválido e 403 se o perfil não for CLIENTE; 422 se canalPedido ou unidadeId estiver ausente ou inválido, se os itens estiverem vazios, se a quantidade for menor que 1 ou não inteira ou se o mesmo produto se repetir; 404 se a unidade ou o produto não existir ou se o produto não estiver ativo no cardápio da unidade. O pedido nasce em AGUARDANDO_PAGAMENTO. | UC4 | Essencial | Implementado |  |
 | RF07 | Pedidos | Registrar pedido no balcão com canal BALCAO gravado automaticamente. | UC13 | Importante | Proposto |  |
 | RF08 | Pedidos | Controlar o status do pedido e permitir só as transições válidas (ver aba 'Status e cancelamento'). | UC16 | Essencial | Implementado |  |
 | RF09 | Pedidos | Acompanhar o status do próprio pedido. | UC5 | Importante | Proposto | Cortado para compensar a volta do RF32. A resposta da criação do pedido já devolve o status. |
@@ -21,12 +21,12 @@ Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Impleme
 | RF11a | Pedidos | Cancelar pedido em AGUARDANDO_PAGAMENTO: o cliente cancela o próprio pedido, e o sistema cancela quando o pagamento é recusado ou a reserva vence. A reserva é liberada. | UC6 | Essencial | Implementado | Corte 1, se ainda apertar (manter o cancelamento pelo sistema). |
 | RF11b | Pedidos | Cancelar pedido já pago ou em preparo (cliente até PAGO, atendente em pedido de balcão até PAGO, gerente até PRONTO), com estorno registrado (mock), devolução do estoque e reversão de pontos. | UC6 | Importante | Proposto |  |
 | RF12 | Pedidos | Ajustar ou reabrir pedido (gerente). | UC18 | Desejável | Proposto |  |
-| RF13 | Estoque | Validar o estoque da unidade ao criar o pedido, reservar os itens por 10 minutos e recusar a venda de item indisponível (409). A reserva fica na coluna quantidadeReservada do estoque por unidade/produto, e o pedido guarda reservaExpiraEm. Antes de calcular o disponível, o sistema libera todas as reservas vencidas, e não só as do pedido consultado. | UC27 | Essencial | Implementado |  |
+| RF13 | Estoque | Validar o estoque da unidade ao criar o pedido, reservar os itens por 10 minutos e recusar a venda de item indisponível (409). A reserva fica na coluna quantidadeReservada do estoque por unidade/produto, e o pedido guarda reservaExpiraEm. A reserva é tudo ou nada, na mesma transação da criação do pedido: se um item não cabe, a reserva dos anteriores é desfeita. Antes de calcular o disponível, o sistema libera todas as reservas vencidas, e não só as do pedido consultado. | UC27 | Essencial | Implementado |  |
 | RF14 | Estoque | Baixar o estoque após o pagamento aprovado; liberar a reserva se o pagamento for recusado, o pedido cancelado ou a reserva vencer. Reservas vencidas são liberadas por checagem na hora (ao criar, consultar ou pagar pedido), sem job em segundo plano. Pagar um pedido depois dos 10 minutos cancela o pedido e retorna erro (409, motivo 'reserva expirada'), sem aprovar o pagamento. | UC27 | Essencial | Implementado |  |
 | RF15 | Estoque | Gerenciar o estoque por unidade. | UC19 | Importante | Proposto |  |
-| RF16 | Pagamento | Solicitar o pagamento ao gateway (mock). | UC11 | Essencial | Implementado |  |
-| RF17 | Pagamento | Receber o resultado do gateway (aprovado ou recusado) e atualizar o status do pedido: PAGO se aprovado; CANCELADO com motivo registrado se recusado. | UC11 | Essencial | Implementado |  |
-| RF18 | Pagamento | Registrar o pagamento de cada pedido (forma, valor, resultado, data/hora). | UC14 | Essencial | Implementado |  |
+| RF16 | Pagamento | Solicitar o pagamento ao gateway (mock) em POST /pedidos/{id}/pagamento. O gateway só é chamado se o pedido for do cliente e ainda estiver AGUARDANDO_PAGAMENTO com a reserva válida. Retorna 401/403 (token ou perfil), 404 se o pedido não existir ou for de outro cliente e 409 se o pedido já estiver PAGO ou CANCELADO (cobre o clique duplo). Erro do gateway retorna 502. O resultado do mock é escolhido pelo campo opcional simularResultado (APROVADO, RECUSADO ou ERRO_GATEWAY; padrão APROVADO), que existe só por ser mock e não iria para produção. | UC11 | Essencial | Implementado |  |
+| RF17 | Pagamento | Receber o resultado do gateway (aprovado, recusado ou erro) e atualizar o status do pedido: PAGO se aprovado; CANCELADO com motivo registrado se recusado (a resposta é 200 com o pedido e o motivo); se o gateway der erro, o pedido continua AGUARDANDO_PAGAMENTO. | UC11 | Essencial | Implementado |  |
+| RF18 | Pagamento | Registrar toda tentativa de pagamento de um pedido (forma, valor, resultado APROVADO, RECUSADO ou ERRO_GATEWAY, data/hora). | UC14 | Essencial | Implementado |  |
 | RF19 | Pagamento | Receber pagamento em dinheiro no balcão. | UC15 | Importante | Proposto |  |
 | RF20 | Fidelidade e LGPD | Registrar a escolha de consentimento de fidelidade (aceite ou recusa, com data/hora e finalidade), capturada opcionalmente no cadastro. O consentimento é independente do cadastro: o serviço não depende dele, e o UC8 continua como caso de uso próprio. | UC8 | Essencial | Implementado |  |
 | RF21 | Fidelidade e LGPD | Revogar o consentimento a qualquer momento. | UC26 | Importante | Proposto |  |
@@ -39,10 +39,13 @@ Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Impleme
 | RF28 | Gestão | Gerenciar unidades. | UC21 | Importante | Proposto |  |
 | RF29 | Gestão | Emitir relatórios: vendas por unidade e região, produtos mais consumidos e financeiros. | UC23 | Importante | Proposto |  |
 | RF30 | Gestão | Consultar pedidos agrupados por canal (com filtro por canalPedido). | UC24 | Importante | Proposto |  |
-| RF31 | Auditoria | Gravar registro (usuário, ação, data/hora, estado anterior e novo) nas operações críticas implementadas: pagamento (aprovado e recusado), cancelamento, reserva/baixa/liberação de estoque, mudança de status, consentimento e crédito de pontos. Estorno e reversão de pontos passam a ser auditados quando o RF11b for implementado. | UC25 | Essencial | Implementado |  |
+| RF31 | Auditoria | Gravar registro (usuário, ação, data/hora, estado anterior e novo) nas operações críticas implementadas: pagamento (aprovado, recusado e erro do gateway), cancelamento, reserva/baixa/liberação de estoque, mudança de status, consentimento e crédito de pontos. Estorno e reversão de pontos passam a ser auditados quando o RF11b for implementado. | UC25 | Essencial | Implementado |  |
 | RF32 | Auditoria | Consultar os logs de auditoria (GET /auditoria), somente gerente; cliente recebe 403. Serve de evidência de auditoria na coleção Postman e de caso para o teste de 403. | UC25 | Essencial | Implementado |  |
 
-## Requisitos não funcionais (RNF)
+
+## RNF
+
+### Requisitos não funcionais
 
 | ID | Categoria | Descrição | Como verificar | Escopo | Se apertar o prazo |
 |---|---|---|---|---|---|
@@ -51,11 +54,14 @@ Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Impleme
 | RNF03 | Desempenho e disponibilidade | Meta, não garantia: no pico (hipótese: 50 pedidos/min por unidade), p95 <= 2 s na criação do pedido. Disponibilidade-alvo de 99,5% (cerca de 3,6 h de queda/mês), justificada pelo uso em horário comercial. | Teste de carga simples para o p95; a disponibilidade não é verificável localmente. | Proposto |  |
 | RNF04 | Tolerância a falha do gateway | Falha do gateway (erro do mock) não perde o pedido: ele fica AGUARDANDO_PAGAMENTO com a reserva ativa e aceita nova tentativa dentro dos 10 min. Passado o prazo, é cancelado e a reserva liberada (checagem na hora, ver RF14). O timeout real de 5 s e o pagamento em dinheiro como alternativa no balcão (UC15) ficam como proposta. | Mock configurado para falhar; conferir status, reserva e nova tentativa. | Implementado (timeout de 5 s: Proposto) | Timeout de 5 s já cortado. |
 | RNF05 | Auditoria | Registros imutáveis: a API não expõe alteração nem exclusão de logs, e o código só insere. Bloqueio por trigger no banco fica como proposta. Cobre as operações do RF31. | Conferir que não existe endpoint de alteração ou exclusão de logs e que as operações do RF31 geram registro. | Implementado (trigger no banco: Proposto) |  |
-| RNF06 | Documentação e erros | Swagger/OpenAPI reflete os endpoints reais. O README permite subir o sistema do zero. A API usa um único padrão de erro com os campos error, message, details, timestamp e path. | Comparar Swagger com as rotas; subir o projeto seguindo só o README; conferir os campos do erro em 400, 404 e 409. | Implementado |  |
+| RNF06 | Documentação e erros | Swagger/OpenAPI reflete os endpoints reais. O README permite subir o sistema do zero. A API usa um único padrão de erro com os campos error, message, details, timestamp e path. | Comparar Swagger com as rotas; subir o projeto seguindo só o README; conferir os campos do erro em 422, 404 e 409. | Implementado |  |
 | RNF07 | Consistência do estoque | Estoque por unidade consistente sob concorrência: a reserva é um UPDATE condicional atômico (só reserva se quantidade - quantidadeReservada >= pedido). Se dois pedidos disputam a última unidade, só um reserva e o outro recebe 409. | Teste sequencial: pedir mais do que o disponível e conferir o 409. O teste concorrente fica como proposta. | Implementado (teste concorrente: Proposto) | Teste concorrente já cortado. |
 | RNF08 | Idempotência | Reenvio da mesma requisição de pedido ou pagamento (chave de idempotência) não gera pedido nem cobrança duplicados. Proposta: não faz parte do fluxo mínimo e o gateway é um mock, sem cobrança real. | Reenviar a mesma requisição e conferir que há um único pedido/pagamento. | Proposto | Já cortado do escopo implementado. |
 
+
 ## Status e cancelamento
+
+### Status e transições (RF08)
 
 | De | Para | Quem executa | Escopo |
 |---|---|---|---|
@@ -80,7 +86,10 @@ Qualquer outra transição retorna erro.
 | Atendente | PAGO | Somente pedidos de balcão. A associação Atendente-UC6 já consta no diagrama; a restrição 'só balcão' fica na especificação do UC6. | Proposto |
 | Pedido pago e cancelado | - | Estorno registrado (mock), estoque devolvido e pontos revertidos. | Proposto |
 
+
 ## Decisões UC4
+
+### Decisões que definem o UC4
 
 | Tema | Decisão | Justificativa | Situação |
 |---|---|---|---|
@@ -90,6 +99,8 @@ Qualquer outra transição retorna erro.
 | Pontos de fidelidade | Implementar o crédito (RF22): só após a aprovação do pagamento e só se consentimentoFidelidade for true. O consentimento é opcional e independente do cadastro: com false o cadastro e o pagamento funcionam e não há crédito (teste negativo). O saldo fica na coluna saldoPontos do cliente e o valor creditado aparece na resposta do pagamento aprovado. Consulta de saldo (RF23) e resgate (RF24) ficam como proposta. | Creditar na criação obrigaria a estornar pontos de pedidos recusados/cancelados e abriria brecha para criar pedidos só para pontuar. | Decidido (implementar) |
 | Regra de conversão de pontos | 1 ponto por R$ 1,00 pago, arredondado para baixo (R$ 19,90 gera 19 pontos). Pedido recusado ou cancelado não gera pontos. | Dá um valor esperado simples para o crédito e para o teste do saldo. | Decidido (implementar) |
 | Expiração da reserva (10 min) | Checagem na hora, sem job em segundo plano. Regras: (1) ao criar um pedido, liberar todas as reservas vencidas antes de calcular o disponível, senão o 409 sai com estoque que já venceu; (2) pagar depois dos 10 minutos cancela o pedido e responde com erro (409, motivo 'reserva expirada'), sem aprovar. Escrever estas regras na descrição do UC4 e no PDF. | Bem mais simples que um agendador e suficiente para o prazo. | Decidido (implementar) |
+| Controle do mock de pagamento | Campo opcional simularResultado (APROVADO, RECUSADO ou ERRO_GATEWAY) no corpo do POST /pedidos/{id}/pagamento, com padrão APROVADO. Outro valor retorna 422. Existe só por ser mock e não iria para produção. | O Postman precisa escolher o resultado em cada requisição sem reiniciar o servidor (variável de ambiente exigiria reinício). | Decidido (implementar) |
+| Acesso ao pedido de outro cliente | Pedido inexistente ou de outro cliente retorna 404, sem chamar o gateway. Pedido já pago ou cancelado retorna 409. | Impede pagar ou ver o pedido de outro cliente sem revelar que ele existe, e cobre o clique duplo em pagar. | Decidido (implementar) |
 | Armazenamento da reserva | Coluna quantidadeReservada no estoque por unidade/produto e reservaExpiraEm no pedido. Disponível = quantidade - quantidadeReservada. | Evita uma tabela extra de reservas e entra no DER. | Decidido (implementar) |
 | Concorrência no estoque | A reserva é um UPDATE condicional atômico, sem lock explícito: só reserva se o disponível cobrir o pedido; senão, 409. | Resolve a disputa pela última unidade com uma única instrução e pouco código. | Decidido (implementar) |
 | Consentimento independente do cadastro | O UC8 continua como caso de uso próprio e opcional. No diagrama, ligar o UC8 ao UC1 por «extend» e manter a associação com o Cliente. O cadastro aceita consentimentoFidelidade true ou false. | O serviço não pode depender do consentimento. Assim a regra 'pontos só com consentimento' é exercida e testada (caso negativo). | Decidido (implementar) |
@@ -98,7 +109,10 @@ Qualquer outra transição retorna erro.
 | Auditoria de estoque | Reserva, baixa e liberação são auditadas com entidade PEDIDO e entidadeId = pedidoId; unidadeId e produtoId ficam em estadoNovo. | A reserva sempre nasce de um pedido, e ESTOQUE tem chave composta. | Decidido (implementar) |
 | Cortes de escopo | Movidos para proposta: idempotência (RNF08), timeout real de 5 s do gateway, trigger de imutabilidade no banco, consulta de saldo (RF23), acompanhar pedido (RF09), teste concorrente do estoque e log de acesso a dados sensíveis (UC20). Revertidos por serem baratos e exigidos pelo roteiro: consulta de logs (RF32, evidência de auditoria na coleção Postman e teste de 403) e paginação do RF10 (regra mínima 5.4). Mantidos: pedido → pagamento → status, consentimento opcional no cadastro, crédito de pontos e registro de auditoria. | Prazo de 23/11. O roteiro valoriza um fluxo fechado mais do que muitos endpoints. | Decidido |
 
+
 ## Resumo
+
+### Resumo por prioridade e escopo
 
 | Prioridade | Implementado | Proposto | Total |
 |---|---|---|---|
@@ -107,6 +121,7 @@ Qualquer outra transição retorna erro.
 | Desejável | 0 | 3 | 3 |
 | Total | 17 | 16 | 33 |
 
-Contagens calculadas por fórmula a partir da aba RF (RF11a e RF11b contam como dois requisitos).
+Contagens a partir da aba RF (na planilha original são fórmulas) (RF11a e RF11b contam como dois requisitos).
 
 Já cortado: idempotência (RNF08), timeout real do gateway, trigger de imutabilidade, RF23, RF09, teste concorrente do estoque e log de acesso a dados sensíveis. Próximo corte, se ainda apertar: RF11a manual do cliente (manter o cancelamento pelo sistema). Preservar pedido → pagamento → status.
+
