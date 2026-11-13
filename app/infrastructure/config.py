@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
+#classe de configuração da aplicação
 class Settings(BaseSettings):
     database_url: str
     jwt_secret: str
