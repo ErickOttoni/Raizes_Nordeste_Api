@@ -1,5 +1,6 @@
 #Popula o banco com dados de teste: unidades, produtos, cardápio, estoque e usuários.
 
+from app.infrastructure.security.passwords import gerar_hash
 from decimal import Decimal
 
 import bcrypt
@@ -12,9 +13,6 @@ from app.infrastructure.persistence.models import (
 )
 
 SENHA_PADRAO = "senha123"
-
-def hash_senha(senha: str) -> str:
-    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
 
 def main() -> None:
     with SessionLocal() as db:
@@ -43,8 +41,8 @@ def main() -> None:
                 quantidade = 2 if (unidade is recife and produto is baiao) else 10
                 db.add(CardapioModel(unidadeId=unidade.id, produtoId=produto.id, preco=preco))
                 db.add(EstoqueModel(unidadeId=unidade.id, produtoId=produto.id, quantidade=quantidade))
-
-        senha = hash_senha(SENHA_PADRAO)  # um hash só, já que a senha de teste é a mesma
+        
+        senha = gerar_hash(SENHA_PADRAO) #gera hash da senha padrão para todos os usuários de teste 
         cliente = UsuarioModel(nome="Cliente Teste", email="cliente@teste.com",
                                senhaHash=senha, perfil="CLIENTE")
         cliente2 = UsuarioModel(nome="Cliente Sem Fidelidade", email="cliente2@teste.com",
