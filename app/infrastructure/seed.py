@@ -1,6 +1,6 @@
 #Popula o banco com dados de teste: unidades, produtos, cardápio, estoque e usuários.
 
-from app.infrastructure.security.passwords import gerar_hash
+from app.infrastructure.security.passwords import BcryptHash, gerar_hash
 from decimal import Decimal
 
 import bcrypt
@@ -42,7 +42,7 @@ def main() -> None:
                 db.add(CardapioModel(unidadeId=unidade.id, produtoId=produto.id, preco=preco))
                 db.add(EstoqueModel(unidadeId=unidade.id, produtoId=produto.id, quantidade=quantidade))
         
-        senha = gerar_hash(SENHA_PADRAO) #gera hash da senha padrão para todos os usuários de teste 
+        senha = BcryptHash().gerar(SENHA_PADRAO) #gera o hash da senha padrão para todos os usuários de teste.
         cliente = UsuarioModel(nome="Cliente Teste", email="cliente@teste.com",
                                senhaHash=senha, perfil="CLIENTE")
         cliente2 = UsuarioModel(nome="Cliente Sem Fidelidade", email="cliente2@teste.com",
