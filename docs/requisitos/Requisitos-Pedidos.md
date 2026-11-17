@@ -1,14 +1,12 @@
-# Requisitos – Sistema de pedidos multicanal (Raízes do Nordeste)
+# Requisitos – Sistema de pedidos multicanal
 
-## RF
-
-Requisitos funcionais
+## Requisitos funcionais
 
 Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Implementado' = fluxo fechado pedido → pagamento → status, mais LGPD e pontos; o restante é 'Proposto' (prazo de entrega: 23/11).
 
 | ID | Módulo | Descrição | UC | Prioridade | Escopo | Se apertar o prazo |
 |---|---|---|---|---|---|---|
-| RF01 | Acesso | Cadastrar clientes. O cadastro aceita o campo opcional consentimentoFidelidade (true ou false) e sempre cria a linha de consentimento (aceito = false quando o campo não vem), com data/hora e finalidade; recusar não impede o cadastro nem o uso do sistema. Os usuários de teste de login nascem por esta API. | UC1 | Essencial | Implementado |  |
+| RF01 | Acesso | Cadastrar clientes. O cadastro aceita o campo opcional consentimentoFidelidade (true ou false) e sempre cria a linha de consentimento (aceito = false quando o campo não vem), com data/hora e finalidade; recusar não impede o cadastro nem o uso do sistema. Os usuários de teste de cada perfil nascem pelo seed; clientes também podem se cadastrar por esta API. | UC1 | Essencial | Implementado |  |
 | RF02 | Acesso | Autenticar usuários com token JWT. | UC2 | Essencial | Implementado |  |
 | RF03 | Acesso | Autorizar cada endpoint por perfil (cliente, atendente, cozinha, gerente). | UC2 | Essencial | Implementado |  |
 | RF04 | Cardápio | Exibir o cardápio da unidade escolhida. | UC3 | Essencial | Implementado |  |
@@ -42,10 +40,7 @@ Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Impleme
 | RF31 | Auditoria | Gravar registro (usuário, ação, data/hora, estado anterior e novo) nas operações críticas implementadas: pagamento (aprovado, recusado e erro do gateway), cancelamento, reserva/baixa/liberação de estoque, mudança de status, consentimento e crédito de pontos. Estorno e reversão de pontos passam a ser auditados quando o RF11b for implementado. | UC25 | Essencial | Implementado |  |
 | RF32 | Auditoria | Consultar os logs de auditoria (GET /auditoria), somente gerente; cliente recebe 403. Serve de evidência de auditoria na coleção Postman e de caso para o teste de 403. | UC25 | Essencial | Implementado |  |
 
-
-## RNF
-
-### Requisitos não funcionais
+## Requisitos não funcionais
 
 | ID | Categoria | Descrição | Como verificar | Escopo | Se apertar o prazo |
 |---|---|---|---|---|---|
@@ -58,10 +53,7 @@ Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Impleme
 | RNF07 | Consistência do estoque | Estoque por unidade consistente sob concorrência: a reserva é um UPDATE condicional atômico (só reserva se quantidade - quantidadeReservada >= pedido). Se dois pedidos disputam a última unidade, só um reserva e o outro recebe 409. | Teste sequencial: pedir mais do que o disponível e conferir o 409. O teste concorrente fica como proposta. | Implementado (teste concorrente: Proposto) | Teste concorrente já cortado. |
 | RNF08 | Idempotência | Reenvio da mesma requisição de pedido ou pagamento (chave de idempotência) não gera pedido nem cobrança duplicados. Proposta: não faz parte do fluxo mínimo e o gateway é um mock, sem cobrança real. | Reenviar a mesma requisição e conferir que há um único pedido/pagamento. | Proposto | Já cortado do escopo implementado. |
 
-
-## Status e cancelamento
-
-### Status e transições (RF08)
+## Status e transições (RF08)
 
 | De | Para | Quem executa | Escopo |
 |---|---|---|---|
@@ -75,7 +67,7 @@ Canais válidos de canalPedido: APP, TOTEM, BALCAO, PICKUP, WEB. Escopo 'Impleme
 
 Qualquer outra transição retorna erro.
 
-### Cancelamento (RF11a e RF11b)
+Cancelamento (RF11a e RF11b)
 
 | Quem | Até qual status | Observação | Escopo |
 |---|---|---|---|
@@ -86,10 +78,7 @@ Qualquer outra transição retorna erro.
 | Atendente | PAGO | Somente pedidos de balcão. A associação Atendente-UC6 já consta no diagrama; a restrição 'só balcão' fica na especificação do UC6. | Proposto |
 | Pedido pago e cancelado | - | Estorno registrado (mock), estoque devolvido e pontos revertidos. | Proposto |
 
-
-## Decisões UC4
-
-### Decisões que definem o UC4
+## Decisões que definem o UC4
 
 | Tema | Decisão | Justificativa | Situação |
 |---|---|---|---|
@@ -109,10 +98,7 @@ Qualquer outra transição retorna erro.
 | Auditoria de estoque | Reserva, baixa e liberação são auditadas com entidade PEDIDO e entidadeId = pedidoId; unidadeId e produtoId ficam em estadoNovo. | A reserva sempre nasce de um pedido, e ESTOQUE tem chave composta. | Decidido (implementar) |
 | Cortes de escopo | Movidos para proposta: idempotência (RNF08), timeout real de 5 s do gateway, trigger de imutabilidade no banco, consulta de saldo (RF23), acompanhar pedido (RF09), teste concorrente do estoque e log de acesso a dados sensíveis (UC20). Revertidos por serem baratos e exigidos pelo roteiro: consulta de logs (RF32, evidência de auditoria na coleção Postman e teste de 403) e paginação do RF10 (regra mínima 5.4). Mantidos: pedido → pagamento → status, consentimento opcional no cadastro, crédito de pontos e registro de auditoria. | Prazo de 23/11. O roteiro valoriza um fluxo fechado mais do que muitos endpoints. | Decidido |
 
-
 ## Resumo
-
-### Resumo por prioridade e escopo
 
 | Prioridade | Implementado | Proposto | Total |
 |---|---|---|---|
@@ -121,7 +107,6 @@ Qualquer outra transição retorna erro.
 | Desejável | 0 | 3 | 3 |
 | Total | 17 | 16 | 33 |
 
-Contagens a partir da aba RF (na planilha original são fórmulas) (RF11a e RF11b contam como dois requisitos).
+Contagens calculadas por fórmula a partir da aba RF (RF11a e RF11b contam como dois requisitos).
 
 Já cortado: idempotência (RNF08), timeout real do gateway, trigger de imutabilidade, RF23, RF09, teste concorrente do estoque e log de acesso a dados sensíveis. Próximo corte, se ainda apertar: RF11a manual do cliente (manter o cancelamento pelo sistema). Preservar pedido → pagamento → status.
-
