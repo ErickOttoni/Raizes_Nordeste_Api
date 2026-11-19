@@ -232,7 +232,7 @@ O PagarPedido não lança exceção nos casos em que o banco precisa guardar o q
 
 5. RN 5 (tudo ou nada): Application, pela transação.
 
-6. RN 6 (reservas vencidas): Application chama, Infrastructure executa.
+6. RN 6 (reservas vencidas): Application chama `EstoqueRepository.liberar_vencidas`.
 
 7. RN 7 (status do pedido): Domain, com o UPDATE condicional na Infrastructure.
 

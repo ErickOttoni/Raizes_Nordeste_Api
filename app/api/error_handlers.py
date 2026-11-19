@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.domain.errors import DadosInvalidos, EstoqueInsuficiente, TransicaoInvalida
 
 from app.application.errors import Conflito, NaoAutenticado, NaoEncontrado, SemPermissao
 
@@ -44,3 +45,16 @@ def registrar_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException):
         return _resposta(request, exc.status_code, "HTTP_ERROR", str(exc.detail))
+
+    @app.exception_handler(DadosInvalidos)
+    async def _dados_invalidos(request: Request, exc: DadosInvalidos):
+        detalhes = [{"campo": exc.campo, "mensagem": str(exc)}]
+        return _resposta(request, 422, "VALIDATION_ERROR", "Dados inválidos.", detalhes)
+
+    @app.exception_handler(EstoqueInsuficiente)
+    async def _estoque(request: Request, exc: EstoqueInsuficiente):
+        return _resposta(request, 409, "CONFLICT", str(exc))
+
+    @app.exception_handler(TransicaoInvalida)
+    async def _transicao(request: Request, exc: TransicaoInvalida):
+        return _resposta(request, 409, "CONFLICT", str(exc))

@@ -3,9 +3,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.application.errors import NaoAutenticado, SemPermissao
 from app.application.ports.token_service import DadosToken, TokenService
+from app.application.use_cases.criar_pedido import CriarPedido
 from app.application.use_cases.login import Login
 from app.application.use_cases.consultar_cardapio import ConsultarCardapio
 
+def get_criar_pedido() -> CriarPedido:
+    raise NotImplementedError
 
 def get_consultar_cardapio() -> ConsultarCardapio:
     raise NotImplementedError
