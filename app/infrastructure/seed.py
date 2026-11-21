@@ -1,6 +1,6 @@
 #Popula o banco com dados de teste: unidades, produtos, cardápio, estoque e usuários.
 
-from app.infrastructure.security.passwords import BcryptHash, gerar_hash
+from app.infrastructure.security.passwords import BcryptHash
 from decimal import Decimal
 
 import bcrypt
