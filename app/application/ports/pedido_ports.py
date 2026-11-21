@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Protocol
 
 from app.domain.entities.pedido import ItemPedido, Pedido
+from app.domain.entities.auditoria import RegistroAuditoria
+
 
 #classes que definem os contratos para o repositório de pedidos, estoque, auditoria, relógio e transação.
 class PedidoRepository(Protocol):
@@ -26,6 +28,7 @@ class AuditoriaRepository(Protocol):
     def registrar(self, usuario_id: int | None, acao: str, entidade: str,
                   entidade_id: int, estado_anterior: dict | None,
                   estado_novo: dict | None) -> None: ...
+    def listar(self, pagina: int, limite: int) -> list[RegistroAuditoria]: ...
 
 
 class Relogio(Protocol):

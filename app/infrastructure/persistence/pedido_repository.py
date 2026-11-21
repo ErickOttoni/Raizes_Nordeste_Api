@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.domain.entities.auditoria import RegistroAuditoria
 from app.domain.entities.pedido import Pedido
 from app.infrastructure.persistence.models import (
     AuditoriaModel, EstoqueModel, ItemPedidoModel, PedidoModel, ConsentimentoModel, PagamentoModel
@@ -150,7 +151,17 @@ class SqlAuditoriaRepository:
             usuarioId=usuario_id, acao=acao, entidade=entidade, entidadeId=entidade_id,
             estadoAnterior=_texto(estado_anterior), estadoNovo=_texto(estado_novo),
         ))
+    def listar(self, pagina: int, limite: int) -> list[RegistroAuditoria]:
+        def _json(texto):
+            return None if texto is None else json.loads(texto)
 
+        consulta = (select(AuditoriaModel).order_by(AuditoriaModel.id.desc())
+                    .offset((pagina - 1) * limite).limit(limite))
+        return [
+            RegistroAuditoria(m.id, m.usuarioId, m.acao, m.entidade, m.entidadeId,
+                              _json(m.estadoAnterior), _json(m.estadoNovo), m.dataHora)
+            for m in self._db.scalars(consulta)
+        ]
 
 class SqlTransacao:
     def __init__(self, db: Session):

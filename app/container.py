@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from app.api import dependencies as dep
+from app.application.use_cases.consultar_auditoria import ConsultarAuditoria
 from app.application.use_cases.consultar_cardapio import ConsultarCardapio
 from app.application.use_cases.criar_pedido import CriarPedido
 from app.application.use_cases.login import Login
@@ -71,3 +72,8 @@ def configurar(app: FastAPI) -> None:
         )
 
     app.dependency_overrides[dep.get_pagar_pedido] = pagar_pedido_pronto
+
+    def auditoria_pronta(db: Session = Depends(get_session)) -> ConsultarAuditoria:
+        return ConsultarAuditoria(SqlAuditoriaRepository(db))
+
+    app.dependency_overrides[dep.get_consultar_auditoria] = auditoria_pronta

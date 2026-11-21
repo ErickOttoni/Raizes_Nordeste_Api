@@ -3,6 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.application.errors import NaoAutenticado, SemPermissao
 from app.application.ports.token_service import DadosToken, TokenService
+from app.application.use_cases.consultar_auditoria import ConsultarAuditoria
 from app.application.use_cases.criar_pedido import CriarPedido
 from app.application.use_cases.login import Login
 from app.application.use_cases.consultar_cardapio import ConsultarCardapio
@@ -44,3 +45,6 @@ def exigir_perfil(*perfis: str):
             raise SemPermissao("Perfil sem permissão para este recurso.")
         return dados
     return checar
+
+def get_consultar_auditoria() -> ConsultarAuditoria:
+    raise NotImplementedError
