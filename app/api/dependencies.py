@@ -6,6 +6,10 @@ from app.application.ports.token_service import DadosToken, TokenService
 from app.application.use_cases.criar_pedido import CriarPedido
 from app.application.use_cases.login import Login
 from app.application.use_cases.consultar_cardapio import ConsultarCardapio
+from app.application.use_cases.pagar_pedido import PagarPedido
+
+def get_pagar_pedido() -> PagarPedido:
+    raise NotImplementedError
 
 def get_criar_pedido() -> CriarPedido:
     raise NotImplementedError

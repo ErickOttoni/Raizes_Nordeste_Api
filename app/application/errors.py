@@ -9,3 +9,6 @@ class NaoEncontrado(Exception):
 
 class Conflito(Exception):
     """Estado que não permite a operação (vira 409)."""
+
+class ErroGateway(Exception):
+    """O gateway de pagamento falhou (vira 502)."""

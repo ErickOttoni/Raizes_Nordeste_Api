@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.domain.errors import DadosInvalidos, EstoqueInsuficiente, TransicaoInvalida
 
-from app.application.errors import Conflito, NaoAutenticado, NaoEncontrado, SemPermissao
+from app.application.errors import Conflito, ErroGateway, NaoAutenticado, NaoEncontrado, SemPermissao
 
 # Funções para padronizar o tratamento de erros na API
 def _resposta(request: Request, status: int, erro: str, mensagem: str, detalhes=None):
@@ -23,7 +23,10 @@ def registrar_handlers(app: FastAPI) -> None:
     @app.exception_handler(NaoAutenticado)
     async def _401(request: Request, exc: NaoAutenticado):
         return _resposta(request, 401, "UNAUTHORIZED", str(exc))
-
+    @app.exception_handler(ErroGateway)
+    async def _502(request: Request, exc: ErroGateway):
+        return _resposta(request, 502, "BAD_GATEWAY", str(exc))
+    
     @app.exception_handler(SemPermissao)
     async def _403(request: Request, exc: SemPermissao):
         return _resposta(request, 403, "FORBIDDEN", str(exc))

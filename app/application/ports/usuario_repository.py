@@ -2,11 +2,13 @@ from typing import Protocol
 
 from app.domain.entities.usuario import Usuario
 
-#classes que definem os contratos para o repositório de usuários e para o serviço de hash de senha.
+
+# Contratos do repositório de usuários e do serviço de hash de senha.
 class UsuarioRepository(Protocol):
     def buscar_por_email(self, email: str) -> Usuario | None: ...
     def buscar_por_id(self, usuario_id: int) -> Usuario | None: ...
     def criar(self, usuario: Usuario) -> Usuario: ...
+    def creditar_pontos(self, usuario_id: int, pontos: int) -> None: ...
 
 
 class HashDeSenha(Protocol):

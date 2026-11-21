@@ -1,9 +1,10 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.domain.entities.usuario import Usuario
 from app.domain.enums import PerfilUsuario
 from app.infrastructure.persistence.models import UsuarioModel
+
 
 #classe de repositório para manipulação de usuários no banco de dados
 class SqlUsuarioRepository:
@@ -34,3 +35,9 @@ class SqlUsuarioRepository:
         return Usuario(id=m.id, nome=m.nome, email=m.email, senha_hash=m.senhaHash,
                        perfil=PerfilUsuario(m.perfil), saldo_pontos=m.saldoPontos,
                        unidade_id=m.unidadeId)
+
+    def creditar_pontos(self, usuario_id: int, pontos: int) -> None:
+        self._db.execute(
+            update(UsuarioModel).where(UsuarioModel.id == usuario_id)
+            .values(saldoPontos=UsuarioModel.saldoPontos + pontos)
+        )

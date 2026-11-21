@@ -1,18 +1,27 @@
 from datetime import datetime
 from typing import Protocol
 
-from app.domain.entities.pedido import Pedido
+from app.domain.entities.pedido import ItemPedido, Pedido
 
-
+#classes que definem os contratos para o repositório de pedidos, estoque, auditoria, relógio e transação.
 class PedidoRepository(Protocol):
     def criar(self, pedido: Pedido) -> Pedido: ...
+    def buscar_do_cliente(self, pedido_id: int, cliente_id: int) -> Pedido | None: ...
+    def cancelar_se_aguardando(self, pedido_id: int, motivo: str) -> bool: ...
+    def marcar_pago(self, pedido_id: int, agora: datetime, pontos: int) -> bool: ...
 
 
 class EstoqueRepository(Protocol):
     def reservar(self, unidade_id: int, produto_id: int, quantidade: int) -> bool: ...
+
     def liberar_vencidas(self, agora: datetime) -> list[int]:
         """Cancela os pedidos com reserva vencida, devolve o estoque e retorna os ids."""
         ...
+
+    def liberar_reserva(self, unidade_id: int, itens: list[ItemPedido]) -> None: ...
+    def baixar(self, unidade_id: int, itens: list[ItemPedido]) -> None: ...
+
+
 class AuditoriaRepository(Protocol):
     def registrar(self, usuario_id: int | None, acao: str, entidade: str,
                   entidade_id: int, estado_anterior: dict | None,

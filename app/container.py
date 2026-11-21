@@ -7,6 +7,7 @@ from app.api import dependencies as dep
 from app.application.use_cases.consultar_cardapio import ConsultarCardapio
 from app.application.use_cases.criar_pedido import CriarPedido
 from app.application.use_cases.login import Login
+from app.application.use_cases.pagar_pedido import PagarPedido
 from app.infrastructure.clock import RelogioSistema
 from app.infrastructure.config import settings
 from app.infrastructure.database import SessionLocal
@@ -16,15 +17,19 @@ from app.infrastructure.persistence.cardapio_repository import (
 )
 from app.infrastructure.persistence.pedido_repository import (
     SqlAuditoriaRepository,
+    SqlConsentimentoRepository,
     SqlEstoqueRepository,
+    SqlPagamentoRepository,
     SqlPedidoRepository,
     SqlTransacao,
 )
 from app.infrastructure.persistence.usuario_repository import SqlUsuarioRepository
 from app.infrastructure.security.jwt_service import JwtTokenService
 from app.infrastructure.security.passwords import BcryptHash
+from app.infrastructure.payment.gateway_mock import GatewayPagamentoMock
 
-# Configura o container de dependências da aplicação FastAPI, registrando os casos de uso e serviços necessários para autenticação e autorização.
+
+# Uma sessão do banco por requisição.
 def get_session() -> Iterator[Session]:
     with SessionLocal() as db:  # uma sessão por requisição
         yield db
@@ -55,3 +60,14 @@ def configurar(app: FastAPI) -> None:
             )
 
     app.dependency_overrides[dep.get_criar_pedido] = criar_pedido_pronto
+
+    gateway = GatewayPagamentoMock()
+
+    def pagar_pedido_pronto(db: Session = Depends(get_session)) -> PagarPedido:
+        return PagarPedido(
+            SqlPedidoRepository(db), SqlEstoqueRepository(db), SqlPagamentoRepository(db),
+            SqlConsentimentoRepository(db), SqlUsuarioRepository(db),
+            SqlAuditoriaRepository(db), gateway, relogio, SqlTransacao(db),
+        )
+
+    app.dependency_overrides[dep.get_pagar_pedido] = pagar_pedido_pronto

@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.domain.entities.pedido import Pedido
 from app.infrastructure.persistence.models import (
-    AuditoriaModel, EstoqueModel, ItemPedidoModel, PedidoModel,
+    AuditoriaModel, EstoqueModel, ItemPedidoModel, PedidoModel, ConsentimentoModel, PagamentoModel
 )
+from app.domain.entities.pedido import ItemPedido, Pedido
+from app.domain.enums import CanalPedido, StatusPedido
+
 
 #classe de repositório para manipulação de pedidos, estoque e auditoria no banco de dados
 class SqlPedidoRepository:
@@ -30,6 +33,38 @@ class SqlPedidoRepository:
         self._db.flush()
         pedido.id = modelo.id
         return pedido
+    def buscar_do_cliente(self, pedido_id: int, cliente_id: int) -> Pedido | None:
+        m = self._db.scalar(select(PedidoModel).where(
+            PedidoModel.id == pedido_id, PedidoModel.clienteId == cliente_id))
+        if m is None:
+            return None
+        itens = self._db.scalars(
+            select(ItemPedidoModel).where(ItemPedidoModel.pedidoId == m.id)).all()
+        return Pedido(
+            id=m.id, cliente_id=m.clienteId, unidade_id=m.unidadeId,
+            canal=CanalPedido(m.canalPedido), status=StatusPedido(m.status),
+            total=m.total, reserva_expira_em=m.reservaExpiraEm,
+            itens=[ItemPedido(i.produtoId, i.quantidade, i.precoUnitario) for i in itens],
+            pontos_creditados=m.pontosCreditados, motivo_cancelamento=m.motivoCancelamento,
+        )
+
+    def cancelar_se_aguardando(self, pedido_id: int, motivo: str) -> bool:
+        r = self._db.execute(
+            update(PedidoModel)
+            .where(PedidoModel.id == pedido_id, PedidoModel.status == "AGUARDANDO_PAGAMENTO")
+            .values(status="CANCELADO", motivoCancelamento=motivo[:120])
+        )
+        return r.rowcount == 1
+
+    def marcar_pago(self, pedido_id: int, agora: datetime, pontos: int) -> bool:
+        r = self._db.execute(
+            update(PedidoModel)
+            .where(PedidoModel.id == pedido_id,
+                   PedidoModel.status == "AGUARDANDO_PAGAMENTO",
+                   PedidoModel.reservaExpiraEm >= agora)
+            .values(status="PAGO", pontosCreditados=pontos)
+        )
+        return r.rowcount == 1
 
 
 class SqlEstoqueRepository:
@@ -85,7 +120,23 @@ class SqlEstoqueRepository:
                 )
             cancelados.append(pedido_id)
         return cancelados
+    
+    def liberar_reserva(self, unidade_id: int, itens: list[ItemPedido]) -> None:
+        for item in itens:
+            self._db.execute(
+                update(EstoqueModel)
+                .where(EstoqueModel.unidadeId == unidade_id, EstoqueModel.produtoId == item.produto_id)
+                .values(quantidadeReservada=EstoqueModel.quantidadeReservada - item.quantidade)
+            )
 
+    def baixar(self, unidade_id: int, itens: list[ItemPedido]) -> None:
+        for item in itens:
+            self._db.execute(
+                update(EstoqueModel)
+                .where(EstoqueModel.unidadeId == unidade_id, EstoqueModel.produtoId == item.produto_id)
+                .values(quantidade=EstoqueModel.quantidade - item.quantidade,
+                        quantidadeReservada=EstoqueModel.quantidadeReservada - item.quantidade)
+            )
 
 class SqlAuditoriaRepository:
     def __init__(self, db: Session):
@@ -107,3 +158,24 @@ class SqlTransacao:
 
     def commit(self) -> None:
         self._db.commit()
+
+class SqlPagamentoRepository:
+    def __init__(self, db: Session):
+        self._db = db
+
+    def registrar(self, pedido_id, forma, valor, resultado, motivo) -> None:
+        self._db.add(PagamentoModel(
+            pedidoId=pedido_id, forma=forma, valor=valor,
+            resultado=resultado.value, motivo=motivo[:120] if motivo else None,
+        ))
+
+
+class SqlConsentimentoRepository:
+    def __init__(self, db: Session):
+        self._db = db
+
+    def ativo(self, usuario_id: int, finalidade: str) -> bool:
+        c = self._db.scalar(select(ConsentimentoModel).where(
+            ConsentimentoModel.usuarioId == usuario_id,
+            ConsentimentoModel.finalidade == finalidade))
+        return c is not None and c.aceito and c.revogadoEm is None

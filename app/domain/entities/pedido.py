@@ -55,3 +55,13 @@ class Pedido:
             status=StatusPedido.AGUARDANDO_PAGAMENTO, total=total,
             reserva_expira_em=agora + timedelta(seconds=ttl_segundos), itens=itens,
         )
+    
+    def aguardando_pagamento(self) -> bool:
+        return self.status == StatusPedido.AGUARDANDO_PAGAMENTO
+
+    def reserva_vencida(self, agora: datetime) -> bool:
+        return agora > self.reserva_expira_em
+
+    def pontos_a_creditar(self) -> int:
+        """RN 12: 1 ponto por R$ 1,00 pago, arredondado para baixo."""
+        return int(self.total)  # int() de Decimal positivo trunca (19,90 -> 19)

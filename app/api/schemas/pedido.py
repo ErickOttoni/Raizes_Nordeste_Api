@@ -2,9 +2,9 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.domain.enums import CanalPedido
+from app.domain.enums import CanalPedido, ResultadoPagamento
 
-#classes para representar os dados de requisição e resposta relacionados a pedidos, incluindo itens de pedido, criação de pedidos e detalhes do pedido.
+#classes de request e response para pedidos, incluindo itens do pedido e detalhes de pagamento.
 class ItemPedidoRequest(BaseModel):
     produtoId: int
     quantidade: int
@@ -30,3 +30,12 @@ class PedidoResponse(BaseModel):
     total: float
     reservaExpiraEm: datetime
     itens: list[ItemPedidoResponse]
+
+
+class PagamentoRequest(BaseModel):
+    simularResultado: ResultadoPagamento = ResultadoPagamento.APROVADO  # só existe por ser mock
+
+
+class PedidoPagoResponse(PedidoResponse):
+    pontosCreditados: int = 0
+    motivo: str | None = None
