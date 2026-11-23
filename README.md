@@ -1,6 +1,6 @@
 # Raízes do Nordeste API
 
-API back-end da rede de lanchonetes **Raízes do Nordeste**, desenvolvida para o Projeto Multidisciplinar (trilha Back-End, Uninter). A entrega implementa o **Fluxo A**: criar pedido, pagar (gateway simulado) e atualizar o status, com autenticação JWT por perfil, reserva de estoque, programa de fidelidade condicionado a consentimento (LGPD) e trilha de auditoria.
+API back-end da rede de lanchonetes **Raízes do Nordeste**, desenvolvida para o Projeto Multidisciplinar (trilha Back-End, Uninter). A entrega implementa o **Fluxo A**: criar pedido, pagar (gateway simulado) e atualizar o status (cozinha e atendente), com autenticação JWT por perfil, reserva de estoque, programa de fidelidade condicionado a consentimento (LGPD) e trilha de auditoria.
 
 - Repositório: https://github.com/ErickOttoni/Raizes_Nordeste_Api
 - Swagger/OpenAPI (com o servidor rodando): http://127.0.0.1:8000/docs
@@ -16,7 +16,7 @@ API back-end da rede de lanchonetes **Raízes do Nordeste**, desenvolvida para o
 | ORM e migrations | SQLAlchemy 2 (síncrono) + PyMySQL + Alembic |
 | Configuração | pydantic-settings (arquivo `.env`) |
 | Autenticação | JWT (PyJWT, HS256) e senhas com bcrypt |
-| Testes | Coleção Postman (76 verificações em 41 requisições) |
+| Testes | Coleção Postman (112 verificações em 58 requisições obrigatórias, mais 2 opcionais) |
 
 ## Arquitetura
 
@@ -101,7 +101,21 @@ alembic upgrade head
 python -m app.infrastructure.seed
 ```
 
-O seed é idempotente: se já existir usuário no banco, ele não faz nada. Para recomeçar do zero, apague e recrie o banco (ou rode `alembic downgrade base`, `alembic upgrade head` e o seed de novo).
+O seed é idempotente: se já existir usuário no banco, ele não faz nada.
+
+**Para recomeçar do zero** (por exemplo, para repetir os testes do Postman, que consomem estoque), apague e recrie o banco e rode as migrations e o seed de novo. Não use `alembic downgrade base`: ele pode deixar o banco incompleto.
+
+```sql
+DROP DATABASE raizes_nordeste;
+CREATE DATABASE raizes_nordeste CHARACTER SET utf8mb4;
+```
+
+```powershell
+alembic upgrade head
+python -m app.infrastructure.seed
+```
+
+Depois confira se existem as 10 tabelas do sistema (`SHOW TABLES;`, mais `alembic_version`).
 
 Dados criados pelo seed:
 
@@ -115,8 +129,8 @@ Usuários de teste (senha de todos: `senha123`):
 |---|---|---|
 | `cliente@teste.com` | CLIENTE | consentimento de fidelidade aceito |
 | `cliente2@teste.com` | CLIENTE | sem consentimento (não acumula pontos) |
-| `atendente@teste.com` | ATENDENTE | unidade Recife |
-| `cozinha@teste.com` | COZINHA | unidade Recife |
+| `atendente@teste.com` | ATENDENTE | unidade Recife; entrega pedidos (PRONTO para ENTREGUE) |
+| `cozinha@teste.com` | COZINHA | unidade Recife; prepara pedidos (PAGO para EM_PREPARO e PRONTO) |
 | `gerente@teste.com` | GERENTE | acesso à auditoria |
 
 ## Executando
@@ -140,6 +154,7 @@ Para autenticar no Swagger: faça `POST /auth/login`, copie o `access_token`, cl
 | GET | `/unidades/{unidade_id}/cardapio` | qualquer autenticado | Cardápio ativo da unidade |
 | POST | `/pedidos` | CLIENTE | Cria o pedido e reserva o estoque (status `AGUARDANDO_PAGAMENTO`) |
 | POST | `/pedidos/{pedido_id}/pagamento` | CLIENTE | Paga o pedido no gateway simulado |
+| PATCH | `/pedidos/{pedido_id}/status` | COZINHA, ATENDENTE | Avança o status do pedido (só pedidos da própria unidade) |
 | GET | `/auditoria?page=1&limit=10` | GERENTE | Consulta paginada da trilha de auditoria |
 
 Exemplo de criação de pedido:
@@ -161,6 +176,22 @@ Exemplo de pagamento (o corpo é opcional; sem ele o resultado é `APROVADO`):
 ```
 
 Valores aceitos: `APROVADO`, `RECUSADO` e `ERRO_GATEWAY`.
+
+Exemplo de atualização de status:
+
+```json
+{ "status": "EM_PREPARO" }
+```
+
+Transições permitidas:
+
+| De | Para | Perfil |
+|---|---|---|
+| PAGO | EM_PREPARO | COZINHA |
+| EM_PREPARO | PRONTO | COZINHA |
+| PRONTO | ENTREGUE | ATENDENTE |
+
+Qualquer outra transição retorna 409. Uma transição válida feita pelo perfil errado retorna 403. Pedido de outra unidade ou inexistente retorna 404. Todo status alterado é registrado na auditoria (`STATUS_ALTERADO`).
 
 ## Regras de negócio principais
 
@@ -197,11 +228,11 @@ Todas as respostas de erro seguem o mesmo formato:
 
 ## Testes (coleção Postman)
 
-Os testes são feitos pela coleção em `postman/Raizes-Nordeste.postman_collection.json`, com **41 requisições** e **76 verificações automáticas**.
+Os testes são feitos pela coleção em `postman/Raizes-Nordeste.postman_collection.json`, com **60 requisições**. As pastas 1 a 6 (58 requisições) têm **112 verificações automáticas**; a pasta 7 é opcional.
 
 1. Suba a API (`uvicorn app.main:app --reload`) com o banco migrado e o seed aplicado.
 2. No Postman, use **Import** e selecione o arquivo `.json` da coleção.
-3. Clique na coleção > **Run collection**, mantenha as pastas **1 a 5** marcadas, desmarque a pasta 6 e clique em **Run**.
+3. Clique na coleção > **Run collection**, mantenha as pastas **1 a 6** marcadas, desmarque a pasta 7 e clique em **Run**.
 
 | Pasta | Conteúdo |
 |---|---|
@@ -209,13 +240,14 @@ Os testes são feitos pela coleção em `postman/Raizes-Nordeste.postman_collect
 | 2. Cardápio | Cardápio da unidade, unidade inexistente, sem token |
 | 3. Criar pedido: erros | Perfil sem permissão, canal inválido, produto inexistente, estoque insuficiente e outras validações |
 | 4. Pedido e pagamento (Fluxo A) | Pedido, pagamento aprovado, recusado, repetido, de outro cliente, pontos de fidelidade |
-| 5. Auditoria (RF32) | Consulta do gerente, paginação, 422, 403 e 401 |
-| 6. Opcional | Reserva vencida (exige `RESERVA_TTL_SEGUNDOS=2` no `.env` e reiniciar a API) |
+| 5. Status do pedido (RF08) | Transições da cozinha e do atendente, 403 por perfil, 404 de outra unidade, 409 de transição inválida, 422 |
+| 6. Auditoria (RF32) | Consulta do gerente, registro de `STATUS_ALTERADO`, paginação, 422, 403 e 401 |
+| 7. Opcional | Reserva vencida (exige `RESERVA_TTL_SEGUNDOS=2` no `.env` e reiniciar a API) |
 
 Observações:
 
-- Rode sempre a coleção completa (pastas 1 a 5 em ordem): o login da pasta 1 grava os tokens usados pelas demais.
-- Cada execução consome estoque (1 suco e 1 cuscuz). Para repetir os testes, restaure o banco: `alembic downgrade base`, `alembic upgrade head` e `python -m app.infrastructure.seed`.
+- Rode sempre a coleção completa (pastas 1 a 6 em ordem): o login da pasta 1 grava os tokens usados pelas demais, e a pasta 6 depende dos pedidos criados antes.
+- Cada execução consome estoque (tapioca, suco e cuscuz). Para repetir os testes, recomece o banco como descrito em "Migrations e dados iniciais" (apagar e recriar o banco, `alembic upgrade head` e o seed).
 
 ## LGPD
 
@@ -232,10 +264,10 @@ Observações:
 
 ## Documentação
 
-Os documentos de projeto estão em `docs/`: diagrama de casos de uso, descrição do caso de uso UC4 (Realizar o Pedido), DER, requisitos e arquitetura em camadas.
+Os documentos de projeto estão em `docs/`: diagrama de casos de uso, descrição do caso de uso UC4 (Realizar o Pedido), DER, requisitos, arquitetura em camadas e, em `docs/diagramas/`, os diagramas de classes (domínio e camadas) e de sequência (criar pedido e pagamento).
 
 ## Escopo desta entrega
 
-Implementado: autenticação por perfil, cardápio, criação de pedido com reserva de estoque, pagamento com gateway simulado, fidelidade condicionada a consentimento e consulta de auditoria.
+Implementado: autenticação por perfil, cardápio, criação de pedido com reserva de estoque, pagamento com gateway simulado, atualização de status pela cozinha e pelo atendente, fidelidade condicionada a consentimento e consulta de auditoria paginada.
 
-Previsto, mas fora desta entrega: cadastro de cliente com registro de consentimento via API, alteração de status do pedido pela cozinha/atendente, listagem de pedidos com paginação e cancelamento pelo cliente.
+Previsto, mas fora desta entrega (prazo): cadastro de cliente com registro de consentimento via API (hoje o consentimento dos usuários de teste vem do seed), listagem de pedidos com paginação e filtros, e cancelamento do pedido pelo cliente (o cancelamento pelo sistema, em caso de pagamento recusado ou reserva vencida, já está implementado).
