@@ -12,17 +12,17 @@ O projeto é dividido em quatro camadas: Domain, Application, Infrastructure e A
 
 4. A Infrastructure conhece a Application e o Domain, porque implementa as interfaces (portas) que a Application define e converte entre os modelos de tabela do banco e as entidades do Domain. A Application nunca importa a Infrastructure, e o Domain nunca depende dela.
 
-`API  ->  Application  ->  Domain`
+`API  ->  Application  ->  Domain`
 
-`              ^`
+`              ^`
 
-`              |  (implementa as interfaces)`
+`              |  (implementa as interfaces)`
 
-`        Infrastructure`
+`        Infrastructure`
 
 A montagem de tudo (qual repositório entra em qual caso de uso) fica em um único lugar: o container.py, na raiz de app/, chamado pelo main.py. Esses dois arquivos são os únicos que conhecem as quatro camadas. O resto da API recebe os casos de uso já prontos e não importa a Infrastructure.
 
-**Tecnologias:** Python com FastAPI (API), SQLAlchemy e Alembic (persistência e migrations) e banco MySQL, que eu modelo e consulto pelo MySQL Workbench. Os testes usam pytest. A injeção de dependências usa o Depends do FastAPI, mas só para entregar à rota o caso de uso já montado pelo container.py.
+**Tecnologias:** Python com FastAPI (API), SQLAlchemy e Alembic (persistência e migrations) e banco MySQL, que eu modelo e consulto pelo MySQL Workbench. Os testes são feitos pela coleção Postman. A injeção de dependências usa o Depends do FastAPI, mas só para entregar à rota o caso de uso já montado pelo container.py.
 
 O SQLAlchemy é usado no modo síncrono (rotas def), por ser mais simples e suficiente para o trabalho. O banco é o MySQL 8.0.
 ## Domain (domínio)
@@ -30,13 +30,13 @@ O SQLAlchemy é usado no modo síncrono (rotas def), por ser mais simples e sufi
 
 **O que tem:** 
 
-1. Entidades: Pedido, ItemPedido, Produto, ItemCardapio (preço e ativo de um produto em uma unidade), Estoque, Unidade, Usuário (Cliente), Pagamento e Consentimento.
+1. Entidades: Pedido, ItemPedido, ItemCardapio (preço e ativo de um produto em uma unidade), Unidade, Usuário e RegistroAuditoria. Estoque, Pagamento e Consentimento existem como tabelas e como portas da Application, implementadas na Infrastructure.
 
 2. Tipos fixos: CanalPedido, StatusPedido, ResultadoPagamento e perfil do usuário.
 
-3. Regras que ficam nas entidades: as transições válidas de status do pedido, a validação dos itens (quantidade inteira maior ou igual a 1, sem produto repetido), o cálculo do total a partir do preço do ItemCardapio, o estoque disponível (quantidade menos reservada), a regra de reservar, liberar e baixar, o consentimento ativo e o cálculo dos pontos (1 por R$ 1,00, arredondado para baixo).
+3. Regras que ficam nas entidades: as transições manuais de status do pedido (tabela com o perfil que executa cada uma: cozinha faz PAGO para EM_PREPARO e EM_PREPARO para PRONTO; atendente faz PRONTO para ENTREGUE), a validação dos itens (quantidade inteira maior ou igual a 1, sem produto repetido), o cálculo do total a partir do preço do ItemCardapio, a verificação de reserva vencida e o cálculo dos pontos (1 por R$ 1,00, arredondado para baixo). O estoque disponível (quantidade menos reservada) e a reserva, liberação e baixa são garantidos pela Infrastructure com UPDATE condicional, e o consentimento ativo (aceito e não revogado) é consultado pela porta ConsentimentoRepository.
 
-4. Erros de domínio: DadosInvalidos, EstoqueInsuficiente e TransicaoInvalida. A reserva vencida não é um erro do Domain: o Pedido só informa se a reserva venceu (por exemplo, reserva_venceu(agora)), e a Application decide o que fazer e devolve o resultado ReservaExpirada.
+4. Erros de domínio: DadosInvalidos, EstoqueInsuficiente e TransicaoInvalida. A reserva vencida não é um erro do Domain: o Pedido só informa se a reserva venceu (reserva_vencida(agora)), e a Application decide o que fazer e devolve o resultado RESERVA_EXPIRADA. A transição de status inexistente é devolvida pela Application como Conflito (409).
 
 **O que não pode ter:** HTTP, SQL, JWT, ORM ou qualquer biblioteca de framework.
 ## Application (aplicação)
@@ -50,13 +50,13 @@ O SQLAlchemy é usado no modo síncrono (rotas def), por ser mais simples e sufi
 
 3. ConsultarCardapio (UC3, RF04)
 
-4. CancelarPedido
+4. CancelarPedido (proposto)
 
-5. AtualizarStatusPedido
+5. AtualizarStatusPedido (RF08: a cozinha faz PAGO, EM_PREPARO e PRONTO; o atendente faz a entrega; só na própria unidade)
 
-6. ListarPedidos
+6. ListarPedidos (proposto)
 
-7. CadastrarUsuario e Login
+7. Login (o CadastrarUsuario é proposto)
 
 8. ConsultarAuditoria
 
@@ -74,11 +74,11 @@ O SQLAlchemy é usado no modo síncrono (rotas def), por ser mais simples e sufi
 
 6. Relógio (devolve a hora atual, para o teste poder simular os 10 minutos).
 
-7. Configuração do prazo da reserva.
+7. HashDeSenha (gerar e verificar o hash da senha), para o Login não depender do bcrypt. O prazo da reserva é lido da configuração pela Infrastructure.
 
-Também ficam aqui os objetos de entrada e saída de cada caso de uso (DTOs).
+As entradas e saídas dos casos de uso são parâmetros simples e entidades do Domain, mais o PagamentoResultado do PagarPedido. Os contratos HTTP ficam nos schemas da API.
 
-**Erros da Application:** NaoEncontrado (unidade, produto ou pedido inexistente, ou pedido de outro cliente; vira 404) e Conflito (pedido já pago ou cancelado, ou troca de status que não afetou nenhuma linha; vira 409). A reserva vencida, a recusa e o erro do gateway não são erros: são resultados devolvidos pelo caso de uso.
+**Erros da Application:** NaoEncontrado (unidade, produto ou pedido inexistente, ou pedido de outro cliente; vira 404), Conflito (pedido já pago ou cancelado, transição de status inexistente, ou troca de status que não afetou nenhuma linha; vira 409), NaoAutenticado (vira 401) e SemPermissao (vira 403). A reserva vencida, a recusa e o erro do gateway não são erros: são resultados devolvidos pelo caso de uso.
 
 **O que não pode ter:** HTTP, SQL, nem classes concretas da Infrastructure.
 ## Infrastructure (infraestrutura)
@@ -86,7 +86,7 @@ Também ficam aqui os objetos de entrada e saída de cada caso de uso (DTOs).
 
 **O que tem:** 
 
-1. Persistência: SQLAlchemy 2 com o driver PyMySQL. Os modelos de tabela (ORM) ficam só aqui e são separados das entidades do Domain; o repositório converte um no outro. As migrations são do Alembic e criam as tabelas do DER.
+1. Persistência: SQLAlchemy 2 com o driver PyMySQL. Os modelos de tabela (ORM) ficam só aqui e são separados das entidades do Domain; o repositório converte um no outro. As migrations são do Alembic (pasta alembic/, na raiz do projeto) e criam as tabelas do DER.
 
 2. Operações atômicas no banco: o UPDATE condicional da reserva do estoque e o UPDATE ... WHERE status = 'AGUARDANDO_PAGAMENTO' que garante o invariante (RN 4, RN 5 e RN 7). A regra é do domínio, mas a garantia de que ela vale mesmo com duas requisições ao mesmo tempo vem do banco. Por isso a porta devolve se o UPDATE afetou 1 linha (o rowcount do SQLAlchemy), e a Application só segue se afetou.
 
@@ -96,7 +96,7 @@ Também ficam aqui os objetos de entrada e saída de cada caso de uso (DTOs).
 
 5. Configuração: o prazo da reserva (600 segundos no padrão, 2 segundos no ambiente de teste), lida de variável de ambiente com pydantic-settings.
 
-6. Log e relógio real.
+6. Relógio real (RelogioSistema).
 
 7. Transação: uma sessão do SQLAlchemy por requisição. O caso de uso faz commit quando termina, inclusive nos resultados que precisam ficar gravados mesmo sendo uma falha (reserva vencida e erro do gateway). O rollback fica para erros antes de gravar algo (validação, 404, estoque insuficiente) e para erros inesperados.
 ## API (interface)
@@ -114,7 +114,7 @@ Também ficam aqui os objetos de entrada e saída de cada caso de uso (DTOs).
 
 5. Tratamento central de erros (exception handlers), no padrão do projeto: error, message, details, timestamp, path. Inclui trocar o formato de erro padrão do FastAPI por esse.
 
-6. Paginação do RF10 (page e limit).
+6. Paginação (page e limit) do GET /auditoria (RF32). A listagem de pedidos (RF10) é proposta.
 
 7. Swagger/OpenAPI, gerado automaticamente pelo FastAPI em /docs.
 
@@ -124,73 +124,65 @@ Estrutura de pastas em Python:
 
 `app/`
 
-`  domain/`
+`  domain/`
 
-`    entities/        pedido.py, item_pedido.py, produto.py, item_cardapio.py,`
+`    entities/        pedido.py (inclui ItemPedido e as transições de status),`
 
-`                     estoque.py, unidade.py, usuario.py, pagamento.py,`
+`                     item_cardapio.py, unidade.py, usuario.py, auditoria.py`
 
-`                     consentimento.py`
+`    enums.py         PerfilUsuario, CanalPedido, StatusPedido, ResultadoPagamento`
 
-`    enums.py         CanalPedido, StatusPedido, ResultadoPagamento`
+`    errors.py        erros de domínio`
 
-`    errors.py        erros de domínio`
+`  application/`
 
-`  application/`
+`    use_cases/       login.py, consultar_cardapio.py, criar_pedido.py, pagar_pedido.py,`
 
-`    use_cases/       criar_pedido.py, pagar_pedido.py, consultar_cardapio.py,`
+`                     atualizar_status_pedido.py, consultar_auditoria.py`
 
-`                     cancelar_pedido.py...`
+`    ports/           interfaces dos repositórios (incluindo cardapio e unidade),`
 
-`    ports/           interfaces dos repositórios (incluindo cardapio e unidade),`
+`                     do gateway, do token, da senha, do relógio e da transação`
 
-`                     do gateway, do token e do relógio`
+`    errors.py        erros da Application (NaoEncontrado, Conflito...)`
 
-`    dto.py           entrada e saída dos casos de uso`
+`  infrastructure/`
 
-`  infrastructure/`
+`    database.py      conexão e sessão do SQLAlchemy`
 
-`    database.py      conexão e sessão do SQLAlchemy`
+`    persistence/     models.py (tabelas) e repositórios`
 
-`    persistence/     models.py (tabelas) e repositórios`
+`    clock.py         relógio real`
 
-`    migrations/      Alembic`
+`    seed.py          dados iniciais (python -m app.infrastructure.seed)`
 
-`    payment/         gateway_mock.py`
+`    services/        gateway_pagamento_mock.py (gateway simulado)`
 
-`    security/        hash de senha e JWT (implementa o TokenService)`
+`    security/        hash de senha e JWT (implementa o TokenService)`
 
-`    config.py        prazo da reserva e demais configurações`
+`    config.py        prazo da reserva e demais configurações`
 
-`  api/`
+`  api/`
 
-`    routers/         auth.py, cardapio.py, pedidos.py, estoque.py, auditoria.py...`
+`    routers/         auth.py, cardapio.py, pedidos.py, auditoria.py`
 
-`    schemas/         contratos de request e response (Pydantic)`
+`    schemas/         contratos de request e response (Pydantic)`
 
-`    dependencies.py  autenticação, perfil e entrega dos casos de uso prontos`
+`    dependencies.py  autenticação, perfil e entrega dos casos de uso prontos`
 
-`                     (não importa a Infrastructure)`
+`                     (não importa a Infrastructure)`
 
-`    error_handlers.py`
+`    error_handlers.py`
 
-`  container.py       monta repositórios e casos de uso (único que liga as camadas)`
+`  container.py       monta repositórios e casos de uso (único que liga as camadas)`
 
-`  main.py            cria o app FastAPI e chama o container`
+`  main.py            cria o app FastAPI e chama o container`
 
-`tests/`
+`postman/             coleção Postman`
 
-`  domain/            testes unitários das regras`
+`alembic/             migrations (Alembic)`
 
-`  application/       casos de uso com repositórios falsos`
-
-`  api/               testes de integração`
-
-`postman/             coleção Postman`
-
-`docker-compose.yml   MySQL 8.0 para rodar o projeto`
-
-`.env.example         variáveis de ambiente de exemplo`
+`.env.example         variáveis de ambiente de exemplo`
 
 O Domain usa classes Python simples (dataclass), sem Pydantic e sem SQLAlchemy. As portas da Application são interfaces (Protocol ou classes abstratas).
 ## O UC4 atravessando as camadas
@@ -198,11 +190,11 @@ O Domain usa classes Python simples (dataclass), sem Pydantic e sem SQLAlchemy. 
 
 1. API: confere o token (401) e o perfil CLIENTE (403), valida o formato do corpo e chama CriarPedido.
 
-2. Application: abre a transação e libera as reservas vencidas. Busca a unidade e o ItemCardapio de cada produto pelo CardapioRepository (404 se a unidade ou o produto não existir ou não estiver ativo).
+2. Application: busca a unidade e o ItemCardapio de cada produto pelo CardapioRepository (404 se a unidade ou o produto não existir ou não estiver ativo).
 
 3. Domain: Pedido valida os itens, calcula o total com os preços do ItemCardapio e nasce AGUARDANDO_PAGAMENTO.
 
-4. Application: reserva todos os itens pela porta do estoque (409 se algum não cabe, e a transação desfaz o resto), salva o pedido, grava a auditoria e confirma a transação.
+4. Application: libera as reservas vencidas, reserva todos os itens (em ordem de produto) pela porta do estoque (409 se algum não cabe, e a transação desfaz o resto), salva o pedido, grava a auditoria e confirma a transação.
 
 5. API: responde 201 com o pedido.
 
@@ -256,7 +248,7 @@ Os erros nascem no Domain e na Application, sem saber de HTTP. Só a API traduz:
 
 3. NaoEncontrado (unidade, produto, pedido): 404.
 
-4. Conflito (EstoqueInsuficiente, pedido já pago ou cancelado, troca de status que não afetou nenhuma linha): 409.
+4. Conflito (EstoqueInsuficiente, pedido já pago ou cancelado, transição de status inexistente, troca de status que não afetou nenhuma linha): 409.
 
 5. Erro do gateway: 502.
 
@@ -264,31 +256,31 @@ Os erros nascem no Domain e na Application, sem saber de HTTP. Só a API traduz:
 
 7. Reserva expirada (409), recusa (200) e erro do gateway (502) são resultados devolvidos depois do commit, e não exceções que desfazem a transação.
 ## Como cada camada é testada
-1. Prioridade: a coleção Postman, que é obrigatória, cobrindo os fluxos do UC4 com o prazo curto da reserva (2 segundos).
+1. A verificação é feita pela coleção Postman (obrigatória), com 60 requisições e 112 verificações automáticas nas pastas 1 a 6, cobrindo login, cardápio, criação de pedido, pagamento, status do pedido, auditoria e os erros. A pasta 7, opcional, testa a reserva vencida com RESERVA_TTL_SEGUNDOS=2.
 
-2. Domain: testes unitários com pytest, sem banco e sem servidor.
+2. Testes automatizados com pytest (domínio sem banco, casos de uso com repositórios falsos e relógio falso, e TestClient) ficam como proposta; a divisão em portas já permite escrevê-los.
 
-3. UC4 (CriarPedido e PagarPedido): testes com repositórios falsos em memória e um relógio falso, o que permite testar a expiração sem esperar 10 minutos.
+3. A expiração da reserva é testada na coleção com o prazo reduzido para 2 segundos (configuração), sem esperar 10 minutos.
 
-4. Os demais casos de uso e os testes com TestClient contra um banco MySQL de teste ficam por último, se houver tempo.
+4. Cada fatia da API foi testada manualmente no Swagger (/docs) antes de entrar na coleção.
 ## Execução e README
 O README precisa permitir rodar o projeto do zero:
 
-1. docker-compose.yml com o MySQL 8.0, para quem não tem o MySQL instalado.
+1. Banco: MySQL 8.0 instalado localmente (o projeto não usa Docker); o README traz os comandos SQL para criar o banco e o usuário.
 
 2. .env.example com a DATABASE_URL, o prazo da reserva e a chave do JWT.
 
-3. Passos: copiar o .env.example para .env, subir o banco (docker compose up -d), rodar as migrations (alembic upgrade head), rodar o seed (usuários de cada perfil, unidades, produtos, cardápio e estoque) e iniciar o servidor (uvicorn app.main:app).
+3. Passos: copiar o .env.example para .env, criar o banco no MySQL local, rodar as migrations (alembic upgrade head), rodar o seed (usuários de cada perfil, unidades, produtos, cardápio e estoque) e iniciar o servidor (uvicorn app.main:app).
 
 4. Onde estão o Swagger (/docs) e a coleção Postman, e como rodar com o prazo curto.
 
-5. Alternativa se faltar tempo ou o avaliador não tiver Docker nem MySQL: apontar a DATABASE_URL para SQLite, já que o SQLAlchemy permite trocar só a URL. Só documentar isso depois de testar o projeto com SQLite.
+5. Para recomeçar o banco (por exemplo, repetir a coleção Postman), apagar e recriar o schema, rodar alembic upgrade head e o seed. Não usar alembic downgrade base, que pode deixar o banco incompleto.
 ## Ordem de implementação
 Implementar por fatia vertical, atravessando as quatro camadas em cada passo, e não camada por camada. A coleção Postman cresce a cada fatia.
 
 1. Base: configuração, conexão com o banco, migrations e seed.
 
-2. Login: cadastro, login, token e perfil.
+2. Login: login, token e perfil (o cadastro pela API é proposto).
 
 3. Cardápio: consultar o cardápio da unidade (RF04).
 
@@ -298,10 +290,10 @@ Implementar por fatia vertical, atravessando as quatro camadas em cada passo, e 
 
 6. Fidelidade e auditoria.
 
-7. Atualizar o status do pedido (RF08) e listar pedidos com paginação (RF10). Fazem parte do fluxo mínimo pedido, pagamento e status.
+7. Atualizar o status do pedido (RF08), feito. A listagem de pedidos com paginação (RF10) ficou como proposta; a paginação foi aplicada ao GET /auditoria (RF32).
 
-8. Cancelamento do pedido pelo cliente (RF11a), só se houver tempo. O cancelamento feito pelo sistema (recusa e vencimento) já está no item 5.
+8. Cancelamento do pedido pelo cliente (RF11a) e cadastro de clientes com consentimento (RF01 e RF20): propostos, fora desta entrega. O cancelamento feito pelo sistema (recusa e vencimento) já está no item 5.
 ## Em aberto
-1. Os nomes dos endpoints serão ajustados quando o Swagger existir.
+1. Nenhum endpoint em aberto: os nomes finais estão no Swagger (/docs).
 
-2. Decidir se o SQLite entra como alternativa documentada no README (depende do tempo).
+2. O SQLite não será usado como alternativa; o README documenta apenas o MySQL.
