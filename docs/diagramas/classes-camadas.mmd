@@ -1,0 +1,90 @@
+classDiagram
+    direction LR
+
+    class PedidosRouter {
+        <<API>>
+        POST /pedidos
+        POST /pedidos/id/pagamento
+    }
+    class CriarPedido {
+        <<caso de uso>>
+        +executar(cliente_id, unidade_id, canal, itens)
+    }
+    class PagarPedido {
+        <<caso de uso>>
+        +executar(cliente_id, pedido_id, simular_resultado)
+    }
+    class Pedido {
+        <<domínio>>
+        +criar()
+        +reserva_vencida()
+        +pontos_a_creditar()
+    }
+
+    class PedidoRepository {
+        <<port>>
+    }
+    class EstoqueRepository {
+        <<port>>
+    }
+    class CardapioRepository {
+        <<port>>
+    }
+    class PagamentoGateway {
+        <<port>>
+    }
+    class PagamentoRepository {
+        <<port>>
+    }
+    class ConsentimentoRepository {
+        <<port>>
+    }
+    class UsuarioRepository {
+        <<port>>
+    }
+
+    class SqlPedidoRepository {
+        <<infraestrutura>>
+    }
+    class SqlEstoqueRepository {
+        <<infraestrutura>>
+    }
+    class SqlCardapioRepository {
+        <<infraestrutura>>
+    }
+    class GatewayPagamentoMock {
+        <<infraestrutura>>
+    }
+    class SqlPagamentoRepository {
+        <<infraestrutura>>
+    }
+    class SqlConsentimentoRepository {
+        <<infraestrutura>>
+    }
+    class SqlUsuarioRepository {
+        <<infraestrutura>>
+    }
+
+    PedidosRouter ..> CriarPedido
+    PedidosRouter ..> PagarPedido
+    CriarPedido ..> Pedido
+    PagarPedido ..> Pedido
+
+    CriarPedido --> PedidoRepository
+    CriarPedido --> EstoqueRepository
+    CriarPedido --> CardapioRepository
+
+    PagarPedido --> PedidoRepository
+    PagarPedido --> EstoqueRepository
+    PagarPedido --> PagamentoGateway
+    PagarPedido --> PagamentoRepository
+    PagarPedido --> ConsentimentoRepository
+    PagarPedido --> UsuarioRepository
+
+    SqlPedidoRepository ..|> PedidoRepository
+    SqlEstoqueRepository ..|> EstoqueRepository
+    SqlCardapioRepository ..|> CardapioRepository
+    GatewayPagamentoMock ..|> PagamentoGateway
+    SqlPagamentoRepository ..|> PagamentoRepository
+    SqlConsentimentoRepository ..|> ConsentimentoRepository
+    SqlUsuarioRepository ..|> UsuarioRepository

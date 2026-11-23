@@ -1,0 +1,111 @@
+classDiagram
+    direction LR
+
+    class Usuario {
+        +int id
+        +str nome
+        +str email
+        +str senha_hash
+        +PerfilUsuario perfil
+        +int saldo_pontos
+        +int unidade_id
+    }
+    class Unidade {
+        +int id
+        +str nome
+        +str regiao
+        +bool ativa
+    }
+    class ItemCardapio {
+        +int unidade_id
+        +int produto_id
+        +str nome
+        +str descricao
+        +Decimal preco
+        +bool ativo
+    }
+    class Pedido {
+        +int id
+        +int cliente_id
+        +int unidade_id
+        +CanalPedido canal
+        +StatusPedido status
+        +Decimal total
+        +datetime reserva_expira_em
+        +int pontos_creditados
+        +str motivo_cancelamento
+        +criar(...) Pedido
+        +aguardando_pagamento() bool
+        +reserva_vencida(agora) bool
+        +pontos_a_creditar() int
+    }
+    class ItemPedido {
+        +int produto_id
+        +int quantidade
+        +Decimal preco_unitario
+    }
+    class ItemSolicitado {
+        +int produto_id
+        +int quantidade
+    }
+    class RegistroAuditoria {
+        +int id
+        +int usuario_id
+        +str acao
+        +str entidade
+        +int entidade_id
+        +dict estado_anterior
+        +dict estado_novo
+        +datetime data_hora
+    }
+    class PerfilUsuario {
+        <<enumeration>>
+        CLIENTE
+        ATENDENTE
+        COZINHA
+        GERENTE
+    }
+    class CanalPedido {
+        <<enumeration>>
+        APP
+        TOTEM
+        BALCAO
+        PICKUP
+        WEB
+    }
+    class StatusPedido {
+        <<enumeration>>
+        AGUARDANDO_PAGAMENTO
+        PAGO
+        EM_PREPARO
+        PRONTO
+        ENTREGUE
+        CANCELADO
+    }
+    class ResultadoPagamento {
+        <<enumeration>>
+        APROVADO
+        RECUSADO
+        ERRO_GATEWAY
+    }
+    class ErroDeDominio {
+        <<exception>>
+    }
+    class DadosInvalidos
+    class EstoqueInsuficiente
+    class TransicaoInvalida
+
+    Usuario "1" --> "1" PerfilUsuario
+    Usuario "0..*" --> "0..1" Unidade : trabalha em
+    Pedido "0..*" --> "1" Usuario : cliente
+    Pedido "0..*" --> "1" Unidade : retirado em
+    Pedido "1" *-- "1..*" ItemPedido
+    Pedido --> CanalPedido
+    Pedido --> StatusPedido
+    ItemCardapio "0..*" --> "1" Unidade
+    ItemSolicitado ..> ItemPedido : vira
+    ItemCardapio ..> ItemPedido : define o preço
+    RegistroAuditoria "0..*" --> "0..1" Usuario
+    ErroDeDominio <|-- DadosInvalidos
+    ErroDeDominio <|-- EstoqueInsuficiente
+    ErroDeDominio <|-- TransicaoInvalida

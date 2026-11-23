@@ -1,0 +1,48 @@
+sequenceDiagram
+    autonumber
+    actor C as Cliente
+    participant R as PedidosRouter (API)
+    participant U as CriarPedido (Application)
+    participant CR as CardapioRepository
+    participant ER as EstoqueRepository
+    participant PR as PedidoRepository
+    participant AR as AuditoriaRepository
+    participant DB as MySQL
+
+    C->>R: POST /pedidos (JWT, unidadeId, canalPedido, itens)
+    R->>R: valida o token e exige perfil CLIENTE
+    alt sem token ou token inválido
+        R-->>C: 401 UNAUTHORIZED
+    else perfil diferente de CLIENTE
+        R-->>C: 403 FORBIDDEN
+    end
+    R->>U: executar(cliente_id, unidade_id, canal, itens)
+    U->>U: canal BALCAO? validar_itens (RN 1)
+    alt dados inválidos
+        U-->>R: DadosInvalidos
+        R-->>C: 422 VALIDATION_ERROR
+    end
+    U->>CR: buscar unidade e itens do cardápio
+    CR->>DB: SELECT unidade, cardapio
+    alt unidade ou produto inexistente
+        U-->>R: NaoEncontrado
+        R-->>C: 404 NOT_FOUND
+    end
+    U->>ER: liberar_vencidas(agora)
+    ER->>DB: cancela pedidos vencidos e devolve estoque
+    U->>AR: registrar RESERVA_EXPIRADA (se houve)
+    loop cada item, em ordem de produto_id
+        U->>ER: reservar(unidade, produto, qtd)
+        ER->>DB: UPDATE estoque SET reservada = reservada + qtd WHERE quantidade - reservada >= qtd
+        alt rowcount = 0
+            U-->>R: EstoqueInsuficiente
+            R-->>C: 409 CONFLICT (rollback)
+        end
+    end
+    U->>U: Pedido.criar (total do servidor, reserva de 10 min)
+    U->>PR: criar(pedido)
+    PR->>DB: INSERT pedido, item_pedido
+    U->>AR: registrar PEDIDO_CRIADO e ESTOQUE_RESERVADO
+    U->>DB: commit
+    U-->>R: Pedido (AGUARDANDO_PAGAMENTO)
+    R-->>C: 201 Created (id, total, reservaExpiraEm)

@@ -1,0 +1,56 @@
+sequenceDiagram
+    autonumber
+    actor C as Cliente
+    participant R as PedidosRouter (API)
+    participant U as PagarPedido (Application)
+    participant PR as PedidoRepository
+    participant ER as EstoqueRepository
+    participant G as PagamentoGateway (mock)
+    participant PG as PagamentoRepository
+    participant CS as ConsentimentoRepository
+    participant UR as UsuarioRepository
+    participant AR as AuditoriaRepository
+
+    C->>R: POST /pedidos/{id}/pagamento (JWT, simularResultado)
+    R->>U: executar(cliente_id, pedido_id, simular_resultado)
+    U->>PR: buscar_do_cliente(pedido_id, cliente_id)
+    alt inexistente ou de outro cliente
+        U-->>R: NaoEncontrado
+        R-->>C: 404 NOT_FOUND
+    else já pago ou cancelado
+        U-->>R: Conflito
+        R-->>C: 409 CONFLICT
+    end
+
+    alt reserva vencida
+        U->>PR: cancelar_se_aguardando("Reserva expirada")
+        U->>ER: liberar_reserva
+        U->>AR: registrar RESERVA_EXPIRADA
+        U->>U: commit
+        R-->>C: 409 CONFLICT (pedido cancelado)
+    end
+
+    U->>G: cobrar(pedido_id, total, simularResultado)
+    U->>PG: registrar(pagamento, resultado)
+
+    alt ERRO_GATEWAY
+        U->>AR: registrar PAGAMENTO_ERRO_GATEWAY
+        U->>U: commit
+        R-->>C: 502 BAD_GATEWAY (reserva mantida)
+    else RECUSADO
+        U->>PR: cancelar_se_aguardando(motivo)
+        U->>ER: liberar_reserva
+        U->>AR: registrar PAGAMENTO_RECUSADO
+        U->>U: commit
+        R-->>C: 200 (status CANCELADO, motivo)
+    else APROVADO
+        U->>PR: marcar_pago (UPDATE ... WHERE status = AGUARDANDO_PAGAMENTO)
+        U->>ER: baixar(estoque definitivo)
+        U->>CS: ativo(cliente, FIDELIDADE)
+        alt consentimento ativo
+            U->>UR: creditar_pontos(1 por R$ 1, truncado)
+        end
+        U->>AR: registrar PAGAMENTO_APROVADO (e PONTOS_CREDITADOS)
+        U->>U: commit
+        R-->>C: 200 (status PAGO, pontosCreditados)
+    end
