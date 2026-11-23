@@ -1,5 +1,5 @@
 # UC4 – Realizar o pedido
-**Descrição:** Permite que o cliente faça um pedido em uma unidade, informando o canal e os itens. O sistema reserva o estoque, solicita o pagamento ao gateway e, se o pagamento for aprovado, confirma o pedido e credita os pontos de fidelidade quando o cliente tiver consentimento. O fluxo é feito em duas chamadas da API: POST /pedidos (passos 1 a 4, cria o pedido e reserva o estoque) e POST /pedidos/{id}/pagamento (passos 5 a 11, paga o pedido). Os nomes dos endpoints serão ajustados quando o Swagger existir.
+**Descrição:** Permite que o cliente faça um pedido em uma unidade, informando o canal e os itens. O sistema reserva o estoque, solicita o pagamento ao gateway e, se o pagamento for aprovado, confirma o pedido e credita os pontos de fidelidade quando o cliente tiver consentimento. O fluxo é feito em duas chamadas da API: POST /pedidos (passos 1 a 4, cria o pedido e reserva o estoque) e POST /pedidos/{id}/pagamento (passos 5 a 11, paga o pedido). Os endpoints estão documentados no Swagger (/docs). Depois de PAGO, o pedido segue pela cozinha e pelo atendente (UC16, PATCH /pedidos/{id}/status), fora do escopo deste caso de uso.
 
 **Ator principal:** Cliente (App, Totem ou Web).
 
@@ -21,7 +21,7 @@
 
 5. Toda tentativa de pagamento fica gravada em PAGAMENTO, e as operações ficam registradas na auditoria.
 
-**Origem das informações:** O cliente vem do token de login. A unidade, o canal e os itens (produto e quantidade) são informados pelo cliente. O preço e o total não vêm do cliente: os preços vêm do cardápio da unidade e o total é calculado pelo servidor. O estoque disponível vem da tabela de estoque, o consentimento vem da tabela de consentimento e o resultado do pagamento vem do gateway (no mock, do campo simularResultado).
+**Origem das informações:** O cliente vem do token de login. A unidade, o canal e os itens (produto e quantidade) são informados pelo cliente. O preço e o total não vêm do cliente: os preços vêm do cardápio da unidade e o total é calculado pelo servidor. O estoque disponível vem da tabela de estoque, o consentimento vem da tabela de consentimento (nesta entrega, preenchida pelo seed) e o resultado do pagamento vem do gateway (no mock, do campo simularResultado).
 
 **Usuários responsáveis:** Cliente, que faz o pedido. Gerente / Administrador, responsável pelo cardápio, pelo estoque e pelas regras da unidade.
 
