@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
 
 from app.api import dependencies as dep
+from app.application.use_cases.atualizar_status_pedido import AtualizarStatusPedido
 from app.application.use_cases.consultar_auditoria import ConsultarAuditoria
 from app.application.use_cases.consultar_cardapio import ConsultarCardapio
 from app.application.use_cases.criar_pedido import CriarPedido
@@ -77,3 +78,13 @@ def configurar(app: FastAPI) -> None:
         return ConsultarAuditoria(SqlAuditoriaRepository(db))
 
     app.dependency_overrides[dep.get_consultar_auditoria] = auditoria_pronta
+
+    def atualizar_status_pronto(db: Session = Depends(get_session)) -> AtualizarStatusPedido:
+        return AtualizarStatusPedido(
+            usuarios=SqlUsuarioRepository(db),
+            pedidos=SqlPedidoRepository(db),
+            auditoria=SqlAuditoriaRepository(db),
+            transacao=SqlTransacao(db),
+        )
+
+    app.dependency_overrides[dep.get_atualizar_status] = atualizar_status_pronto

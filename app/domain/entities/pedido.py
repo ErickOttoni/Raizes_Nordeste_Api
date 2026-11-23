@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from app.domain.enums import CanalPedido, StatusPedido
+from app.domain.enums import CanalPedido, StatusPedido, PerfilUsuario
 from app.domain.errors import DadosInvalidos
 
 
@@ -65,3 +65,15 @@ class Pedido:
     def pontos_a_creditar(self) -> int:
         """RN 12: 1 ponto por R$ 1,00 pago, arredondado para baixo."""
         return int(self.total)  # int() de Decimal positivo trunca (19,90 -> 19)
+    
+# RF08: quem pode executar cada transição manual de status.
+TRANSICOES_MANUAIS: dict[tuple[StatusPedido, StatusPedido], PerfilUsuario] = {
+    (StatusPedido.PAGO, StatusPedido.EM_PREPARO): PerfilUsuario.COZINHA,
+    (StatusPedido.EM_PREPARO, StatusPedido.PRONTO): PerfilUsuario.COZINHA,
+    (StatusPedido.PRONTO, StatusPedido.ENTREGUE): PerfilUsuario.ATENDENTE,
+}
+
+
+def perfil_da_transicao(de: StatusPedido, para: StatusPedido) -> PerfilUsuario | None:
+    """Devolve o perfil que executa a transição, ou None se ela não existe."""
+    return TRANSICOES_MANUAIS.get((de, para))

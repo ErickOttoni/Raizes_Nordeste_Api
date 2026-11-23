@@ -3,6 +3,7 @@ from typing import Protocol
 
 from app.domain.entities.pedido import ItemPedido, Pedido
 from app.domain.entities.auditoria import RegistroAuditoria
+from app.domain.enums import StatusPedido
 
 
 #classes que definem os contratos para o repositório de pedidos, estoque, auditoria, relógio e transação.
@@ -11,6 +12,8 @@ class PedidoRepository(Protocol):
     def buscar_do_cliente(self, pedido_id: int, cliente_id: int) -> Pedido | None: ...
     def cancelar_se_aguardando(self, pedido_id: int, motivo: str) -> bool: ...
     def marcar_pago(self, pedido_id: int, agora: datetime, pontos: int) -> bool: ...
+    def buscar_na_unidade(self, pedido_id: int, unidade_id: int) -> Pedido | None: ...
+    def atualizar_status(self, pedido_id: int, de: StatusPedido, para: StatusPedido) -> bool: ...
 
 
 class EstoqueRepository(Protocol):

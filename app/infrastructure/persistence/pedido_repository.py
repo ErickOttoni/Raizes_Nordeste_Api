@@ -67,6 +67,36 @@ class SqlPedidoRepository:
         )
         return r.rowcount == 1
 
+    def buscar_na_unidade(self, pedido_id: int, unidade_id: int) -> Pedido | None:
+        m = self._db.scalar(
+            select(PedidoModel).where(
+                PedidoModel.id == pedido_id, PedidoModel.unidadeId == unidade_id
+            )
+        )
+        if m is None:
+            return None
+        itens = self._db.scalars(
+            select(ItemPedidoModel).where(ItemPedidoModel.pedidoId == m.id)
+        ).all()
+        return Pedido(
+            id=m.id, cliente_id=m.clienteId, unidade_id=m.unidadeId,
+            canal=CanalPedido(m.canalPedido), status=StatusPedido(m.status),
+            total=m.total, reserva_expira_em=m.reservaExpiraEm,
+            itens=[ItemPedido(produto_id=i.produtoId, quantidade=i.quantidade,
+                              preco_unitario=i.precoUnitario) for i in itens],
+            pontos_creditados=m.pontosCreditados,
+            motivo_cancelamento=m.motivoCancelamento,
+        )
+
+    def atualizar_status(self, pedido_id: int, de: StatusPedido, para: StatusPedido) -> bool:
+        """RN 7: só troca se o pedido ainda está no status esperado (UPDATE condicional)."""
+        resultado = self._db.execute(
+            update(PedidoModel)
+            .where(PedidoModel.id == pedido_id, PedidoModel.status == de.value)
+            .values(status=para.value)
+        )
+        return resultado.rowcount == 1
+
 
 class SqlEstoqueRepository:
     def __init__(self, db: Session):

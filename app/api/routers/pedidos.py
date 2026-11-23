@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from httpx import get
 
-from app.api.dependencies import exigir_perfil, get_criar_pedido, get_pagar_pedido
+from app.api.dependencies import exigir_perfil, get_atualizar_status, get_criar_pedido, get_pagar_pedido
 from app.api.schemas.pedido import CriarPedidoRequest, ItemPedidoResponse, PedidoResponse
 from app.application.ports.token_service import DadosToken
 from app.application.use_cases.criar_pedido import CriarPedido
@@ -9,7 +9,8 @@ from app.domain.entities.pedido import ItemSolicitado, Pedido
 from app.application.errors import Conflito, ErroGateway
 from app.api.schemas.pedido import PagamentoRequest, PedidoPagoResponse
 from app.application.use_cases.pagar_pedido import PagarPedido, Desfecho
-
+from app.api.schemas.pedido import AtualizarStatusRequest
+from app.application.use_cases.atualizar_status_pedido import AtualizarStatusPedido
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
 
@@ -50,3 +51,13 @@ def pagar_pedido(
         raise Conflito("Reserva expirada: o pedido foi cancelado.")
     base = _para_resposta(r.pedido).model_dump()
     return PedidoPagoResponse(**base, pontosCreditados=r.pontos_creditados, motivo=r.motivo)
+
+@router.patch("/{pedido_id}/status", response_model=PedidoResponse)
+def atualizar_status(
+    pedido_id: int,
+    corpo: AtualizarStatusRequest,
+    dados: DadosToken = Depends(exigir_perfil("COZINHA", "ATENDENTE")),
+    caso_de_uso: AtualizarStatusPedido = Depends(get_atualizar_status),
+):
+    pedido = caso_de_uso.executar(dados.usuario_id, dados.perfil, pedido_id, corpo.status)
+    return _para_resposta(pedido)

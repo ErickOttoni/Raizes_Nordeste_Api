@@ -3,6 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.application.errors import NaoAutenticado, SemPermissao
 from app.application.ports.token_service import DadosToken, TokenService
+from app.application.use_cases.atualizar_status_pedido import AtualizarStatusPedido
 from app.application.use_cases.consultar_auditoria import ConsultarAuditoria
 from app.application.use_cases.criar_pedido import CriarPedido
 from app.application.use_cases.login import Login
@@ -47,4 +48,7 @@ def exigir_perfil(*perfis: str):
     return checar
 
 def get_consultar_auditoria() -> ConsultarAuditoria:
+    raise NotImplementedError
+
+def get_atualizar_status() -> AtualizarStatusPedido:
     raise NotImplementedError
